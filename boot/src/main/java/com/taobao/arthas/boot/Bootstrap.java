@@ -61,7 +61,15 @@ import com.taobao.middleware.cli.annotations.Summary;
                 + "  java -jar arthas-boot.jar --repo-mirror aliyun --use-http\n" + "WIKI:\n"
                 + "  https://arthas.aliyun.com/doc\n")
 public class Bootstrap {
+
+    /**
+     * client连接的telnet默认端口号
+     */
     private static final int DEFAULT_TELNET_PORT = 3658;
+
+    /**
+     * server端的http endpoint默认暴露端口
+     */
     private static final int DEFAULT_HTTP_PORT = 8563;
     private static final String DEFAULT_TARGET_IP = "127.0.0.1";
     private static File ARTHAS_LIB_DIR;
@@ -309,6 +317,9 @@ public class Bootstrap {
         this.disabledCommands = disabledCommands;
     }
 
+    /**
+     * arthas-boot.jar 启动入口
+     */
     public static void main(String[] args) throws ParserConfigurationException, SAXException, IOException,
                     ClassNotFoundException, NoSuchMethodException, SecurityException, IllegalAccessException,
                     IllegalArgumentException, InvocationTargetException {
@@ -316,6 +327,8 @@ public class Bootstrap {
         if (javaHome != null) {
             AnsiLog.info("JAVA_HOME: " + javaHome);
         }
+
+        // 获取arthas-boot的版本
         Package bootstrapPackage = Bootstrap.class.getPackage();
         if (bootstrapPackage != null) {
             String arthasBootVersion = bootstrapPackage.getImplementationVersion();
@@ -335,10 +348,13 @@ public class Bootstrap {
 
         Bootstrap bootstrap = new Bootstrap();
 
+        // 从启动命令中解析args
         CLI cli = CLIConfigurator.define(Bootstrap.class);
         CommandLine commandLine = cli.parse(Arrays.asList(args));
 
         try {
+            // 从命令行参数中set本类@Option字段
+            // 从解析的args中获取相关option的配置，再通过反射获取Bootstrap.class字段中@Option的field，如果命令行有配置，则set进去
             CLIConfigurator.inject(commandLine, bootstrap);
         } catch (Throwable e) {
             e.printStackTrace();
@@ -349,6 +365,8 @@ public class Bootstrap {
         if (bootstrap.isVerbose()) {
             AnsiLog.level(Level.ALL);
         }
+
+        // 如果命令行输入是 -h，则直接返回help文案后直接退出
         if (bootstrap.isHelp()) {
             System.out.println(usage(cli));
             System.exit(0);
@@ -363,6 +381,7 @@ public class Bootstrap {
         }
         AnsiLog.debug("Repo mirror:" + bootstrap.getRepoMirror());
 
+        // 如果命令行输入是 -version，则直接返回所有可用版本文案后直接退出
         if (bootstrap.isVersions()) {
             System.out.println(UsageRender.render(listVersions()));
             System.exit(0);
@@ -390,10 +409,11 @@ public class Bootstrap {
             }
         }
 
+        // 目标jvm进程id可以通过启动命令参数指定
         long pid = bootstrap.getPid();
-        // select pid
         if (pid < 0) {
             try {
+                // 通过jps获取所有jvm进程号，并监听输入流获取所选的进程id
                 pid = ProcessUtils.select(bootstrap.isVerbose(), telnetPortPid, bootstrap.getSelect());
             } catch (InputMismatchException e) {
                 System.out.println("Please input an integer to select pid.");

@@ -54,7 +54,7 @@ public class ProcessUtils {
     @SuppressWarnings("resource")
     public static long select(boolean v, long telnetPortPid, String select) throws InputMismatchException {
         Map<Long, String> processMap = listProcessByJps(v);
-        // Put the port that is already listening at the first
+        // 默认将已经监听的进程号放到第一位（删除之后重新按顺序放进去）
         if (telnetPortPid > 0 && processMap.containsKey(telnetPortPid)) {
             String telnetPortProcess = processMap.get(telnetPortPid);
             processMap.remove(telnetPortPid);
@@ -65,11 +65,12 @@ public class ProcessUtils {
         }
 
         if (processMap.isEmpty()) {
+            // 如果当前环境没有启动的jvm进程，则返回-1
             AnsiLog.info("Can not find java process. Try to run `jps` command lists the instrumented Java HotSpot VMs on the target system.");
             return -1;
         }
 
-		// select target process by the '--select' option when match only one process
+        // 如果启动参数通过'--select'指定某个进程名，则从map中获取该进程id（如果有多个进程名匹配，则还需用户选择）
 		if (select != null && !select.trim().isEmpty()) {
 			int matchedSelectCount = 0;
 			Long matchedPid = null;
@@ -96,7 +97,7 @@ public class ProcessUtils {
             count++;
         }
 
-        // read choice
+        // 等待用户输入的序号
         String line = new Scanner(System.in).nextLine();
         if (line.trim().isEmpty()) {
             // get the first process id
@@ -109,6 +110,7 @@ public class ProcessUtils {
             return -1;
         }
 
+        // 用序号再从map中获取进程id
         Iterator<Long> idIter = processMap.keySet().iterator();
         for (int i = 1; i <= choice; ++i) {
             if (i == choice) {
@@ -120,9 +122,13 @@ public class ProcessUtils {
         return -1;
     }
 
+    /**
+     * 通过jps命令找到所有jvm进程号
+     */
     private static Map<Long, String> listProcessByJps(boolean v) {
         Map<Long, String> result = new LinkedHashMap<Long, String>();
 
+        // step1: 找到jps程序文件
         String jps = "jps";
         File jpsFile = findJps();
         if (jpsFile != null) {
@@ -131,6 +137,7 @@ public class ProcessUtils {
 
         AnsiLog.debug("Try use jps to lis java process, jps: " + jps);
 
+        // step2: 拼接命令
         String[] command = null;
         if (v) {
             command = new String[] { jps, "-v", "-l" };
@@ -138,6 +145,7 @@ public class ProcessUtils {
             command = new String[] { jps, "-l" };
         }
 
+        // step3: 执行jps命令
         List<String> lines = ExecutingCommand.runNative(command);
 
         AnsiLog.debug("jps result: " + lines);
@@ -151,9 +159,11 @@ public class ProcessUtils {
             try {
                 long pid = Long.parseLong(strings[0]);
                 if (pid == currentPid) {
+                    // 获取的所有jvm进程号中包括本进程，排除一下
                     continue;
                 }
-                if (strings.length >= 2 && isJpsProcess(strings[1])) { // skip jps
+                if (strings.length >= 2 && isJpsProcess(strings[1])) {
+                    // 排除jps进程本身
                     continue;
                 }
 
@@ -412,6 +422,9 @@ public class ProcessUtils {
         return toolsJar;
     }
 
+    /**
+     * 在java home目录下找jps程序文件
+     */
     private static File findJps() {
         // Try to find jps under java.home and System env JAVA_HOME
         String javaHome = System.getProperty("java.home");
