@@ -27,6 +27,9 @@ public class Arthas {
         attachAgent(parse(args));
     }
 
+    /**
+     * 根据入参args转换为Configure对象
+     */
     private Configure parse(String[] args) {
         Option pid = new TypedOption<Long>().setType(Long.class).setShortName("pid").setRequired(true);
         Option core = new TypedOption<String>().setType(String.class).setShortName("core").setRequired(true);
@@ -85,6 +88,9 @@ public class Arthas {
         return configure;
     }
 
+    /**
+     * 根据参数进行目标jvm进程的attach
+     */
     private void attachAgent(Configure configure) throws Exception {
         VirtualMachineDescriptor virtualMachineDescriptor = null;
         for (VirtualMachineDescriptor descriptor : VirtualMachine.list()) {
@@ -96,7 +102,8 @@ public class Arthas {
         }
         VirtualMachine virtualMachine = null;
         try {
-            if (null == virtualMachineDescriptor) { // 使用 attach(String pid) 这种方式
+            // 通过attach的方式获取目标进程的VM
+            if (null == virtualMachineDescriptor) {
                 virtualMachine = VirtualMachine.attach("" + configure.getJavaPid());
             } else {
                 virtualMachine = VirtualMachine.attach(virtualMachineDescriptor);
@@ -119,6 +126,7 @@ public class Arthas {
             configure.setArthasAgent(encodeArg(arthasAgentPath));
             configure.setArthasCore(encodeArg(configure.getArthasCore()));
             try {
+                // 在目标VM中加载arthas-agent.jar
                 virtualMachine.loadAgent(arthasAgentPath,
                         configure.getArthasCore() + ";" + configure.toString());
             } catch (IOException e) {
@@ -156,6 +164,9 @@ public class Arthas {
         }
     }
 
+    /**
+     * arthas-core.jar的启动入口
+     */
     public static void main(String[] args) {
         try {
             new Arthas(args);

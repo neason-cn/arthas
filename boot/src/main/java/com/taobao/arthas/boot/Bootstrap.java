@@ -72,6 +72,13 @@ public class Bootstrap {
      */
     private static final int DEFAULT_HTTP_PORT = 8563;
     private static final String DEFAULT_TARGET_IP = "127.0.0.1";
+
+    /**
+     * 用于存放下载的arthas lib文件夹位置，可能是以下中的一种：
+     * ${ARTHAS_LIB_DIR}
+     * ${user.home}/.arthas/lib
+     * ${java.io.tmpdir}/.arthas/lib
+     */
     private static File ARTHAS_LIB_DIR;
 
     private boolean help = false;
@@ -80,9 +87,6 @@ public class Bootstrap {
     private String targetIp;
     private Integer telnetPort;
     private Integer httpPort;
-    /**
-     * @see com.taobao.arthas.core.config.Configure#DEFAULT_SESSION_TIMEOUT_SECONDS
-     */
     private Long sessionTimeout;
 
     private Integer height = null;
@@ -397,6 +401,7 @@ public class Bootstrap {
         long telnetPortPid = -1;
         long httpPortPid = -1;
         if (bootstrap.getTelnetPortOrDefault() > 0) {
+            // 找到arthas-boot在当前机器上是否已经建立了Telnet的连接
             telnetPortPid = SocketUtils.findTcpListenProcess(bootstrap.getTelnetPortOrDefault());
             if (telnetPortPid > 0) {
                 AnsiLog.info("Process {} already using port {}", telnetPortPid, bootstrap.getTelnetPortOrDefault());
@@ -471,8 +476,9 @@ public class Bootstrap {
             }
         }
 
-        // try to download from remote server
+        // 如果arthas home目录为空，则创建文件夹并下载远程相关lib包
         if (arthasHomeDir == null) {
+            // step1: 创建arthas lib文件夹
             boolean checkFile =  ARTHAS_LIB_DIR.exists() || ARTHAS_LIB_DIR.mkdirs();
             if(!checkFile){
                 AnsiLog.error("cannot create directory {}: maybe permission denied", ARTHAS_LIB_DIR.getAbsolutePath());
@@ -539,7 +545,8 @@ public class Bootstrap {
             telnetPortPid = findProcessByTelnetClient(arthasHomeDir.getAbsolutePath(), bootstrap.getTelnetPortOrDefault());
             checkTelnetPortPid(bootstrap, telnetPortPid, pid);
 
-            // start arthas-core.jar
+            // 开始启动arthas-core.jar
+            // 拼接命令（有些参数是从启动arthas-boot.jar时传入的参数传递下去的）
             List<String> attachArgs = new ArrayList<String>();
             attachArgs.add("-jar");
             attachArgs.add(new File(arthasHomeDir, "arthas-core.jar").getAbsolutePath());
@@ -603,6 +610,7 @@ public class Bootstrap {
 
             AnsiLog.info("Try to attach process " + pid);
             AnsiLog.debug("Start arthas-core.jar args: " + attachArgs);
+            // 启动arthas-core.jar
             ProcessUtils.startArthasCore(pid, attachArgs);
 
             AnsiLog.info("Attach process {} success.", pid);
@@ -612,8 +620,7 @@ public class Bootstrap {
             System.exit(0);
         }
 
-        // start java telnet client
-        // find arthas-client.jar
+        // 拼接启动arthas-client.jar的启动命令
         URLClassLoader classLoader = new URLClassLoader(
                         new URL[] { new File(arthasHomeDir, "arthas-client.jar").toURI().toURL() });
         Class<?> telnetConsoleClas = classLoader.loadClass("com.taobao.arthas.client.TelnetConsole");
@@ -646,6 +653,7 @@ public class Bootstrap {
 
         // fix https://github.com/alibaba/arthas/issues/833
         Thread.currentThread().setContextClassLoader(classLoader);
+        // 通过反射在boot端启动client
         mainMethod.invoke(null, new Object[] { telnetArgs.toArray(new String[0]) });
     }
 
@@ -744,6 +752,9 @@ public class Bootstrap {
         return result.toString();
     }
 
+    /**
+     * 获取文件夹下一级的文件名
+     */
     private static List<String> listNames(File dir) {
         List<String> names = new ArrayList<String>();
         if (!dir.exists()) {
@@ -763,6 +774,9 @@ public class Bootstrap {
         return names;
     }
 
+    /**
+     * 校验${arthas_home}路径下是否有必要的几个jar包
+     */
     private static void verifyArthasHome(String arthasHome) {
         File home = new File(arthasHome);
         if (home.isDirectory()) {
@@ -780,6 +794,9 @@ public class Bootstrap {
         throw new IllegalArgumentException("illegal arthas home: " + home.getAbsolutePath());
     }
 
+    /**
+     * 获取arthas-boot命令行的usage信息，大部分都是通过从@Option，@Description中获取
+     */
     private static String usage(CLI cli) {
         StringBuilder usageStringBuilder = new StringBuilder();
         UsageMessageFormatter usageMessageFormatter = new UsageMessageFormatter();
